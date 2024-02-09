@@ -4,7 +4,7 @@ using Newtonsoft.Json;
 using System.Threading.Tasks;
 using Open.Nat;
 
-namespace easyfileshare
+namespace EasyFileShare
 {
     public static class Utils
     {
