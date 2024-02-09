@@ -84,7 +84,7 @@ namespace EasyFileShare
         {
             var server = new TcpListener(IPAddress.Any, FileTransferPort);
             server.Start();
-            Console.WriteLine($"Listening for incoming files on port {FileTransferPort}. Press Enter to exit receive mode.");
+            Console.WriteLine($"Listening for incoming files on port {FileTransferPort}. Ctrl-C to exit without receiving files.");
             await Task.Run(() => ReceiveFiles(downloadsFolder, server));
             server.Stop();
         }
