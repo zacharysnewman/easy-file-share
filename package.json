@@ -1,0 +1,12 @@
+{
+  "name": "easyfileshare",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "dotnet build",
+    "start": "dotnet run --project='easy-file-share'"
+  },
+  "author": "",
+  "license": "ISC"
+}

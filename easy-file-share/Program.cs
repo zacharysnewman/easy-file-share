@@ -8,6 +8,8 @@ namespace easyfileshare
 {
     class MainClass
     {
+        private static TcpListener? server;
+
         public static async Task Main(string[] args)
         {
             await Utils.ForwardPort(9001);
@@ -15,11 +17,8 @@ namespace easyfileshare
             var publicIp = await Utils.GetPublicIpAddress();
             Console.WriteLine($"Public IP Address: {publicIp}");
 
-            // Use the user's Downloads folder as the default receive directory
             string downloadsFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
-            Task.Run(() => _StartPeer("127.0.0.1", 9001, downloadsFolder));
 
-            // Main loop
             while (true)
             {
                 Console.WriteLine("Options:");
@@ -28,26 +27,25 @@ namespace easyfileshare
                 Console.WriteLine("3. Exit");
 
                 Console.Write("Enter your choice (1/2/3): ");
-                string choice = Console.ReadLine();
+                string choice = Console.ReadLine() ?? "";
 
                 switch (choice)
                 {
                     case "1":
-                        // Send file
                         Console.Write("Enter the peer's IP address: ");
-                        string peerIpAddress = Console.ReadLine();
+                        string peerIpAddress = Console.ReadLine() ?? "";
                         Console.Write("Enter the file path to send: ");
-                        string sendFilePath = Console.ReadLine();
-                        Task.Run(() => _StartPeer(peerIpAddress, 9001, sendFilePath)).Wait();
+                        string sendFilePath = Console.ReadLine() ?? "";
+                        Task.Run(() => StartPeer(peerIpAddress, 9001, sendFilePath)).Wait();
                         break;
                     case "2":
-                        // Receive file
-                        Console.WriteLine($"Receiving files to: {downloadsFolder}");
-                        Console.WriteLine("Press Enter to exit receive mode.");
-                        Console.ReadLine(); // Wait for Enter key
+                        server = new TcpListener(IPAddress.Any, 9001);
+                        server.Start();
+                        Console.WriteLine($"Listening for incoming files on port 9001. Press Enter to exit receive mode.");
+                        Task.Run(() => ReceiveFiles(downloadsFolder)).Wait();
+                        server.Stop();
                         break;
                     case "3":
-                        // Exit the loop and finish execution
                         Console.WriteLine("Exiting the program.");
                         return;
                     default:
@@ -57,23 +55,46 @@ namespace easyfileshare
             }
         }
 
-        static async Task _StartPeer(string ipAddress, int port, string defaultReceiveFolder)
+        static void StartPeer(string ipAddress, int port, string sendFilePath)
         {
             try
             {
-                TcpListener server = new TcpListener(IPAddress.Any, port);
+                TcpClient client = new TcpClient(ipAddress, port);
+                NetworkStream stream = client.GetStream();
+                BinaryWriter writer = new BinaryWriter(stream);
 
-                // Start listening for client requests
-                server.Start();
-                Console.WriteLine($"Peer listening on port {port}");
+                writer.Write(sendFilePath);
+                using (var fileStream = new FileStream(sendFilePath, FileMode.Open))
+                {
+                    writer.Write(fileStream.Length);
+                    byte[] buffer = new byte[1024];
+                    int bytesRead;
+                    long totalBytesRead = 0;
+                    while ((bytesRead = fileStream.Read(buffer, 0, buffer.Length)) > 0)
+                    {
+                        stream.Write(buffer, 0, bytesRead);
+                        totalBytesRead += bytesRead;
+                        int progressPercentage = (int)((double)totalBytesRead / fileStream.Length * 100);
+                        Console.WriteLine($"Progress: {progressPercentage}%");
+                    }
+                }
 
+                Console.WriteLine("File sent successfully.");
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Error: " + e.Message);
+            }
+        }
+
+        static async Task ReceiveFiles(string defaultReceiveFolder)
+        {
+            try
+            {
                 while (true)
                 {
-                    // Accept the client connection
                     TcpClient client = await server.AcceptTcpClientAsync();
-
-                    // Handle client in a separate thread or method
-                    await _HandlePeer(client, defaultReceiveFolder);
+                    HandlePeer(client, defaultReceiveFolder);
                 }
             }
             catch (Exception e)
@@ -82,7 +103,7 @@ namespace easyfileshare
             }
         }
 
-        static async Task _HandlePeer(TcpClient client, string defaultReceiveFolder)
+        static void HandlePeer(TcpClient client, string defaultReceiveFolder)
         {
             try
             {
@@ -90,25 +111,16 @@ namespace easyfileshare
                 BinaryReader reader = new BinaryReader(stream);
                 BinaryWriter writer = new BinaryWriter(stream);
 
-                // Check if the user provided a file path
                 string filePath = reader.ReadString();
                 if (!string.IsNullOrWhiteSpace(filePath))
                 {
-                    // Send file to peer
-                    Console.WriteLine($"Sending file: {filePath}");
-
-                    // Get file name and size
+                    Console.WriteLine($"Sending file to: {filePath}");
                     string fileName = Path.GetFileName(filePath);
                     long fileSize = new FileInfo(filePath).Length;
-
-                    // Send file name and size to peer
                     writer.Write(fileName);
                     writer.Write(fileSize);
-
-                    // Implement file transfer logic (replace with your own implementation)
                     using (FileStream fileStream = File.OpenRead(filePath))
                     {
-                        // Send file content to peer with progress percentage
                         byte[] buffer = new byte[1024];
                         int bytesRead;
                         long totalBytesRead = 0;
@@ -116,8 +128,6 @@ namespace easyfileshare
                         {
                             stream.Write(buffer, 0, bytesRead);
                             totalBytesRead += bytesRead;
-
-                            // Calculate and display progress percentage
                             int progressPercentage = (int)((double)totalBytesRead / fileSize * 100);
                             Console.WriteLine($"Progress: {progressPercentage}%");
                         }
@@ -127,17 +137,10 @@ namespace easyfileshare
                 }
                 else
                 {
-                    // Receive file from peer
                     Console.WriteLine($"Receiving files to: {defaultReceiveFolder}");
-
-                    // Create the downloads folder if it doesn't exist
                     Directory.CreateDirectory(defaultReceiveFolder);
-
-                    // Get file name and size from peer
                     string fileName = reader.ReadString();
                     long fileSize = reader.ReadInt64();
-
-                    // Receive file content from the peer with progress percentage
                     using (FileStream fileStream = File.Create(Path.Combine(defaultReceiveFolder, fileName)))
                     {
                         byte[] buffer = new byte[1024];
@@ -147,8 +150,6 @@ namespace easyfileshare
                         {
                             fileStream.Write(buffer, 0, bytesRead);
                             totalBytesRead += bytesRead;
-
-                            // Calculate and display progress percentage
                             int progressPercentage = (int)((double)totalBytesRead / fileSize * 100);
                             Console.WriteLine($"Progress: {progressPercentage}%");
                         }

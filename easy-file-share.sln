@@ -1,25 +1,22 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.810.25
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "easy-file-share", "easy-file-share\easy-file-share.csproj", "{F38C8FE3-C6CF-4EAF-86BA-3EB19319305E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "easy-file-share", "easy-file-share\easy-file-share.csproj", "{1FD45A51-999A-4938-A993-3DE7831BFB43}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-		Debug|anycpu = Debug|anycpu
-		Release|anycpu = Release|anycpu
-	EndGlobalSection
-	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{F38C8FE3-C6CF-4EAF-86BA-3EB19319305E}.Debug|anycpu.ActiveCfg = Debug|anycpu
-		{F38C8FE3-C6CF-4EAF-86BA-3EB19319305E}.Debug|anycpu.Build.0 = Debug|anycpu
-		{F38C8FE3-C6CF-4EAF-86BA-3EB19319305E}.Release|anycpu.ActiveCfg = Release|anycpu
-		{F38C8FE3-C6CF-4EAF-86BA-3EB19319305E}.Release|anycpu.Build.0 = Release|anycpu
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
-	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {FF3A98F8-B1CF-4022-8ADE-481783ECDA22}
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1FD45A51-999A-4938-A993-3DE7831BFB43}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1FD45A51-999A-4938-A993-3DE7831BFB43}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1FD45A51-999A-4938-A993-3DE7831BFB43}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1FD45A51-999A-4938-A993-3DE7831BFB43}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
