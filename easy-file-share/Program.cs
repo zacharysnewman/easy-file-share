@@ -10,81 +10,62 @@ namespace easyfileshare
     {
         public static async Task Main(string[] args)
         {
-            //var publicIp = await Utils.GetPublicIpAddress();
-            //await Utils.ForwardPort(9001);
+            await Utils.ForwardPort(9001);
 
-            //Console.WriteLine($"Hello {publicIp}!");
-            // 174.164.184.12
-            Task.Run(_Server_Main);
-            _Client_Main();
-        }
+            var publicIp = await Utils.GetPublicIpAddress();
+            Console.WriteLine($"Public IP Address: {publicIp}");
 
-        static void _Client_Main()
-        {
-            try
+            // Use the user's Downloads folder as the default receive directory
+            string downloadsFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+            Task.Run(() => _StartPeer("127.0.0.1", 9001, downloadsFolder));
+
+            // Main loop
+            while (true)
             {
-                Console.Write("Enter the server's IP address: ");
-                string serverIp = Console.ReadLine();
+                Console.WriteLine("Options:");
+                Console.WriteLine("1. Send file");
+                Console.WriteLine("2. Receive file");
+                Console.WriteLine("3. Exit");
 
-                if (IPAddress.TryParse(serverIp, out IPAddress ipAddress))
+                Console.Write("Enter your choice (1/2/3): ");
+                string choice = Console.ReadLine();
+
+                switch (choice)
                 {
-                    TcpClient client = new TcpClient(ipAddress.ToString(), 9001);
-                    NetworkStream stream = client.GetStream();
-                    BinaryWriter writer = new BinaryWriter(stream);
-
-                    // Send file path to server
-                    Console.Write("Enter the file path: ");
-                    string filePath = Console.ReadLine();
-                    writer.Write(filePath);
-
-                    // Receive file size from server
-                    BinaryReader reader = new BinaryReader(stream);
-                    long fileSize = reader.ReadInt64();
-                    Console.WriteLine($"Receiving file of size {fileSize} bytes.");
-
-                    // Receive file content from server
-                    using (var fileStream = new FileStream("received_file.txt", FileMode.Create))
-                    {
-                        byte[] buffer = new byte[1024];
-                        int bytesRead;
-                        while (fileSize > 0 && (bytesRead = stream.Read(buffer, 0, buffer.Length)) > 0)
-                        {
-                            fileStream.Write(buffer, 0, bytesRead);
-                            fileSize -= bytesRead;
-                        }
-                    }
-
-                    Console.WriteLine("File received successfully.");
+                    case "1":
+                        // Send file
+                        Console.Write("Enter the peer's IP address: ");
+                        string peerIpAddress = Console.ReadLine();
+                        Console.Write("Enter the file path to send: ");
+                        string sendFilePath = Console.ReadLine();
+                        Task.Run(() => _StartPeer(peerIpAddress, 9001, sendFilePath)).Wait();
+                        break;
+                    case "2":
+                        // Receive file
+                        Console.WriteLine($"Receiving files to: {downloadsFolder}");
+                        Console.WriteLine("Press Enter to exit receive mode.");
+                        Console.ReadLine(); // Wait for Enter key
+                        break;
+                    case "3":
+                        // Exit the loop and finish execution
+                        Console.WriteLine("Exiting the program.");
+                        return;
+                    default:
+                        Console.WriteLine("Invalid choice. Please enter 1, 2, or 3.");
+                        break;
                 }
-                else
-                {
-                    Console.WriteLine("Invalid IP address format. Please enter a valid IP address.");
-                }
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine("Error: " + e.Message);
             }
         }
 
-
-        static async Task _Server_Main()
+        static async Task _StartPeer(string ipAddress, int port, string defaultReceiveFolder)
         {
             try
             {
-                string publicIp = await Utils.GetPublicIpAddress();
-                Console.WriteLine($"Public IP Address: {publicIp}");
-
-                int port = 9001;
-
-                // Forward the port using Open.Nat
-                await Utils.ForwardPort(port);
-
                 TcpListener server = new TcpListener(IPAddress.Any, port);
 
                 // Start listening for client requests
                 server.Start();
-                Console.WriteLine($"Server listening on port {port}");
+                Console.WriteLine($"Peer listening on port {port}");
 
                 while (true)
                 {
@@ -92,7 +73,7 @@ namespace easyfileshare
                     TcpClient client = await server.AcceptTcpClientAsync();
 
                     // Handle client in a separate thread or method
-                    await _Server_HandleClient(client);
+                    await _HandlePeer(client, defaultReceiveFolder);
                 }
             }
             catch (Exception e)
@@ -101,38 +82,84 @@ namespace easyfileshare
             }
         }
 
-        static async Task _Server_HandleClient(TcpClient client)
+        static async Task _HandlePeer(TcpClient client, string defaultReceiveFolder)
         {
             try
             {
                 NetworkStream stream = client.GetStream();
                 BinaryReader reader = new BinaryReader(stream);
+                BinaryWriter writer = new BinaryWriter(stream);
 
-                // Receive file path from client
+                // Check if the user provided a file path
                 string filePath = reader.ReadString();
-                Console.WriteLine($"Receiving file: {filePath}");
-
-                // Implement file transfer logic (replace with your own implementation)
-                using (FileStream fileStream = File.OpenRead(filePath))
+                if (!string.IsNullOrWhiteSpace(filePath))
                 {
-                    // Send file size to client
-                    BinaryWriter writer = new BinaryWriter(stream);
-                    writer.Write(fileStream.Length);
+                    // Send file to peer
+                    Console.WriteLine($"Sending file: {filePath}");
 
-                    // Send file content to client
-                    byte[] buffer = new byte[1024];
-                    int bytesRead;
-                    while ((bytesRead = fileStream.Read(buffer, 0, buffer.Length)) > 0)
+                    // Get file name and size
+                    string fileName = Path.GetFileName(filePath);
+                    long fileSize = new FileInfo(filePath).Length;
+
+                    // Send file name and size to peer
+                    writer.Write(fileName);
+                    writer.Write(fileSize);
+
+                    // Implement file transfer logic (replace with your own implementation)
+                    using (FileStream fileStream = File.OpenRead(filePath))
                     {
-                        stream.Write(buffer, 0, bytesRead);
-                    }
-                }
+                        // Send file content to peer with progress percentage
+                        byte[] buffer = new byte[1024];
+                        int bytesRead;
+                        long totalBytesRead = 0;
+                        while ((bytesRead = fileStream.Read(buffer, 0, buffer.Length)) > 0)
+                        {
+                            stream.Write(buffer, 0, bytesRead);
+                            totalBytesRead += bytesRead;
 
-                Console.WriteLine("File transfer complete.");
+                            // Calculate and display progress percentage
+                            int progressPercentage = (int)((double)totalBytesRead / fileSize * 100);
+                            Console.WriteLine($"Progress: {progressPercentage}%");
+                        }
+                    }
+
+                    Console.WriteLine("File transfer complete.");
+                }
+                else
+                {
+                    // Receive file from peer
+                    Console.WriteLine($"Receiving files to: {defaultReceiveFolder}");
+
+                    // Create the downloads folder if it doesn't exist
+                    Directory.CreateDirectory(defaultReceiveFolder);
+
+                    // Get file name and size from peer
+                    string fileName = reader.ReadString();
+                    long fileSize = reader.ReadInt64();
+
+                    // Receive file content from the peer with progress percentage
+                    using (FileStream fileStream = File.Create(Path.Combine(defaultReceiveFolder, fileName)))
+                    {
+                        byte[] buffer = new byte[1024];
+                        int bytesRead;
+                        long totalBytesRead = 0;
+                        while (totalBytesRead < fileSize && (bytesRead = stream.Read(buffer, 0, buffer.Length)) > 0)
+                        {
+                            fileStream.Write(buffer, 0, bytesRead);
+                            totalBytesRead += bytesRead;
+
+                            // Calculate and display progress percentage
+                            int progressPercentage = (int)((double)totalBytesRead / fileSize * 100);
+                            Console.WriteLine($"Progress: {progressPercentage}%");
+                        }
+                    }
+
+                    Console.WriteLine("File received successfully.");
+                }
             }
             catch (Exception e)
             {
-                Console.WriteLine("Error handling client: " + e.Message);
+                Console.WriteLine("Error handling peer: " + e.Message);
             }
             finally
             {
